@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 import { config } from '../config.js';
 import { Message, AppError } from '../utils/types.js';
-import { mcpToolDefinitions, executeTool } from '../mcp-server/index.js';
+import { mcpToolDefinitions, mcpTools, executeTool } from '../mcp-server/index.js';
 import logger from '../middlewares/logging.js';
 
 // Initialize OpenAI client
@@ -10,21 +10,31 @@ const openai = new OpenAI({
 });
 
 // System prompt for the Nigerian property assistant
-const SYSTEM_PROMPT = `You are a Nigerian property search assistant. You only use our database.
+const SYSTEM_PROMPT = `You are a helpful Nigerian property search assistant. You only use our database.
 
-Always:
-1. Verify the place via db_location_exists (check city/location).
-2. If valid, call db_search_properties with user filters.
-3. If invalid, say so and suggest close matches from db_location_exists.
+CRITICAL: Always follow this exact flow:
+1. Check location with db_location_exists first
+2. If location exists, IMMEDIATELY call db_search_properties with the location
+3. If you get an error from db_search_properties, try again with different parameters
+4. ALWAYS show actual property data from successful searches
+5. If all searches fail, explain the technical issue clearly
 
-Keep replies concise, friendly, and factual. Never invent listings; only present tool results.
-After each reply, persist it with chat_save_message. Prices default to NGN. Reuse the same conversationId.
+Search Parameters:
+- For ANY location: use {"place": "Lagos"} or {"place": "Akobo"} or {"place": "Victoria Island"}
+- The system searches ONLY in the address column for all locations
+- Always include limit: {"limit": 10}
 
-Important: 
-- Always check location existence before searching
-- Be helpful but honest about what's available
-- Use clear, conversational Nigerian English
-- Format property results nicely for the user`;
+Error Handling:
+- If db_search_properties returns {"error": true, ...}, try searching with different parameters
+- If location exists but no properties found, say "I found the location but no active properties are listed there currently"
+- Never give vague responses like "technical difficulties" - be specific about what happened
+
+Response Format:
+- When successful: "Great! I found [X] properties in [location]. Here are some options: [list actual properties with names, prices, bedrooms]"
+- Always show real property names, addresses, and prices from the database
+- Never invent or assume property details
+
+After each response, save it with chat_save_message using the same conversationId.`;
 
 export interface ChatCompletionParams {
   messages: Message[];
@@ -130,6 +140,7 @@ export async function handleToolCall(toolCall: OpenAI.Chat.Completions.ChatCompl
     let args: any;
     try {
       args = JSON.parse(argsString);
+      console.log('Parsed tool arguments:', JSON.stringify(args, null, 2));
     } catch (parseError) {
       throw new AppError(
         `Invalid tool arguments: ${argsString}`,
@@ -139,8 +150,8 @@ export async function handleToolCall(toolCall: OpenAI.Chat.Completions.ChatCompl
       );
     }
 
-    // Map OpenAI tool names to our internal tool names
-    const toolName = functionName.replace('_', '_') as any;
+    // Map OpenAI tool names to our internal tool names  
+    const toolName = functionName as keyof typeof mcpTools;
     
     if (!toolName) {
       throw new AppError(
@@ -149,6 +160,17 @@ export async function handleToolCall(toolCall: OpenAI.Chat.Completions.ChatCompl
         400
       );
     }
+
+    // Validate that the tool exists in our tools
+    if (!mcpTools[toolName]) {
+      throw new AppError(
+        `Tool not found: ${toolName}. Available tools: ${Object.keys(mcpTools).join(', ')}`,
+        'TOOL_NOT_FOUND',
+        400
+      );
+    }
+
+    console.log('Executing tool:', toolName, 'with args:', JSON.stringify(args, null, 2));
 
     // Execute the tool
     const result = await executeTool(toolName, args);
@@ -187,9 +209,20 @@ export async function* processStreamingCompletion(
   messages: Message[],
   conversationId: string
 ): AsyncGenerator<{ type: 'token' | 'tool' | 'done'; data: any }> {
-  let currentToolCall: Partial<OpenAI.Chat.Completions.ChatCompletionMessageToolCall> | null = null;
-  let toolCalls: OpenAI.Chat.Completions.ChatCompletionMessageToolCall[] = [];
   let accumulatedContent = '';
+  let currentMessages = [...messages];
+  
+  // Process the completion recursively to handle multiple tool calls
+  yield* processCompletionRecursively(completion, currentMessages, conversationId, accumulatedContent);
+}
+
+async function* processCompletionRecursively(
+  completion: AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>,
+  messages: Message[],
+  conversationId: string,
+  accumulatedContent: string
+): AsyncGenerator<{ type: 'token' | 'tool' | 'done'; data: any }> {
+  let currentToolCall: Partial<OpenAI.Chat.Completions.ChatCompletionMessageToolCall> | null = null;
   let currentMessages = [...messages];
 
   try {
@@ -207,8 +240,6 @@ export async function* processStreamingCompletion(
       // Handle tool calls
       if (delta.tool_calls) {
         for (const toolCallDelta of delta.tool_calls) {
-          const index = toolCallDelta.index;
-          
           // Initialize or update tool call
           if (toolCallDelta.id) {
             currentToolCall = {
@@ -231,7 +262,11 @@ export async function* processStreamingCompletion(
 
       // Check if we have a complete tool call
       if (chunk.choices[0]?.finish_reason === 'tool_calls' && currentToolCall?.id) {
-        toolCalls.push(currentToolCall as OpenAI.Chat.Completions.ChatCompletionMessageToolCall);
+        logger.info({ 
+          conversationId,
+          toolName: currentToolCall.function?.name,
+          toolArgs: currentToolCall.function?.arguments 
+        }, 'Executing tool call');
         
         // Execute tool call
         const result = await handleToolCall(currentToolCall as OpenAI.Chat.Completions.ChatCompletionMessageToolCall);
@@ -247,7 +282,7 @@ export async function* processStreamingCompletion(
         // Add the tool call and result to messages for continuation
         const toolCallMessage: Message = {
           role: 'assistant',
-          content: '',
+          content: accumulatedContent,
           timestamp: new Date().toISOString(),
           tool_calls: [currentToolCall as OpenAI.Chat.Completions.ChatCompletionMessageToolCall]
         };
@@ -261,45 +296,22 @@ export async function* processStreamingCompletion(
         
         currentMessages.push(toolCallMessage, toolResultMessage);
         
-        // Continue the conversation with the tool result
-        const continuationCompletion = await createChatCompletion({
-          messages: currentMessages,
-          conversationId,
-          stream: true,
-          temperature: 0.4,
-          topP: 0.9,
-        });
+        // Create a new completion with the updated messages
+        const continuationCompletion = await createContinuationCompletion(currentMessages, conversationId);
         
-        // Process the continuation stream
-        for await (const continuationChunk of continuationCompletion as any) {
-          const continuationDelta = continuationChunk.choices[0]?.delta;
-          
-          if (!continuationDelta) continue;
-          
-          // Handle content tokens from continuation
-          if (continuationDelta.content) {
-            accumulatedContent += continuationDelta.content;
-            yield { type: 'token', data: { content: continuationDelta.content } };
-          }
-          
-          // Check if continuation is done
-          if (continuationChunk.choices[0]?.finish_reason === 'stop') {
-            yield { type: 'done', data: { content: accumulatedContent } };
-            return;
-          }
-        }
-        
-        currentToolCall = null;
+        // Recursively process the continuation
+        yield* processCompletionRecursively(continuationCompletion, currentMessages, conversationId, accumulatedContent);
+        return;
       }
 
       // Check if completion is done
       if (chunk.choices[0]?.finish_reason === 'stop') {
         yield { type: 'done', data: { content: accumulatedContent } };
-        break;
+        return;
       }
     }
   } catch (error) {
-    logger.error({ error }, 'Error processing streaming completion');
+    logger.error({ error, conversationId }, 'Error processing streaming completion');
     yield { 
       type: 'done', 
       data: { 
@@ -309,6 +321,65 @@ export async function* processStreamingCompletion(
       } 
     };
   }
+}
+
+async function createContinuationCompletion(
+  messages: Message[], 
+  conversationId: string
+): Promise<AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>> {
+  // Convert messages to OpenAI format for continuation
+  const systemMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam = {
+    role: 'system',
+    content: SYSTEM_PROMPT,
+  };
+
+  const formattedMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+    systemMessage,
+    ...messages.map(msg => {
+      if (msg.role === 'tool' && msg.tool_call_id) {
+        return {
+          role: 'tool' as const,
+          content: msg.content,
+          tool_call_id: msg.tool_call_id,
+        };
+      } else if (msg.role === 'assistant' && msg.tool_calls) {
+        return {
+          role: 'assistant' as const,
+          content: msg.content,
+          tool_calls: msg.tool_calls,
+        };
+      } else {
+        return {
+          role: msg.role as 'user' | 'assistant' | 'system',
+          content: msg.content,
+        };
+      }
+    }),
+  ];
+  
+  logger.info({ conversationId, messageCount: formattedMessages.length }, 'Creating continuation completion');
+  
+  return await openai.chat.completions.create({
+    model: 'gpt-4o-mini',
+    messages: formattedMessages,
+    tools: mcpToolDefinitions.map(tool => {
+      if (tool.function.name === 'chat_save_message') {
+        return {
+          ...tool,
+          function: {
+            ...tool.function,
+            description: `${tool.function.description} Always use conversationId: ${conversationId}`,
+          },
+        };
+      }
+      return tool;
+    }),
+    tool_choice: 'auto',
+    temperature: 0.4,
+    top_p: 0.9,
+    max_tokens: 1000,
+    stream: true,
+  }) as any;
 }
 
 /**

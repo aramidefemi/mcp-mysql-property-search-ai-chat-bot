@@ -25,10 +25,7 @@ export type ChatRequest = z.infer<typeof ChatRequestSchema>;
 
 // Property search types
 export const PropertySearchInputSchema = z.object({
-  place: z.object({
-    by: z.enum(['city', 'location']),
-    value: z.string().min(1),
-  }),
+  place: z.string().min(1),
   minPrice: z.number().positive().optional(),
   maxPrice: z.number().positive().optional(),
   bedrooms: z.number().int().positive().optional(),
