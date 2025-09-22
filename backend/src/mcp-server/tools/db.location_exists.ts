@@ -26,13 +26,12 @@ export async function locationExists(input: LocationExistsInput): Promise<Locati
     console.log('locationExists called with name:', name);
     
 
-const query = `SELECT location, price, property_header 
+const query = `SELECT id, location
 FROM property
 WHERE LOWER(location) LIKE CONCAT('%', LOWER('${name}'), '%' )  limit 3;`
 
 const simpleResult = await executeQuery(query) as any[];
-
-console.log('simpleResult:', simpleResult, 'query:', query);
+ 
     return {
       exists: false,
       match: null,

@@ -164,15 +164,74 @@ export default function ChatPage() {
   };
 
   const formatMessageContent = (content: string) => {
-    // Simple formatting for property data and line breaks
-    return content
-      .split('\n')
-      .map((line, index) => (
-        <span key={index}>
-          {line}
-          {index < content.split('\n').length - 1 && <br />}
-        </span>
-      ));
+    // Enhanced formatting for markdown-style property listings
+    const lines = content.split('\n');
+    const elements: JSX.Element[] = [];
+    let key = 0;
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      
+      if (!line) {
+        // Empty line - add spacing
+        elements.push(<br key={key++} />);
+        continue;
+      }
+
+      // Check for property listings (lines starting with • or **)
+      if (line.startsWith('•') || line.startsWith('**')) {
+        elements.push(
+          <div key={key++} className="ml-4 mb-2">
+            {formatPropertyLine(line)}
+          </div>
+        );
+      } else if (line.startsWith('**') && line.endsWith('**')) {
+        // Bold headers
+        elements.push(
+          <div key={key++} className="font-semibold text-gray-800 mb-2">
+            {line.replace(/\*\*/g, '')}
+          </div>
+        );
+      } else if (line.includes('₦')) {
+        // Price lines - make them prominent
+        elements.push(
+          <div key={key++} className="font-semibold text-green-600 mb-1">
+            {line}
+          </div>
+        );
+      } else {
+        // Regular text
+        elements.push(
+          <div key={key++} className="mb-1">
+            {line}
+          </div>
+        );
+      }
+    }
+
+    return elements;
+  };
+
+  const formatPropertyLine = (line: string) => {
+    // Format property details with better styling
+    if (line.startsWith('•')) {
+      const content = line.substring(1).trim();
+      return (
+        <div className="text-sm text-gray-700">
+          <span className="text-gray-500">•</span> {content}
+        </div>
+      );
+    }
+    
+    if (line.startsWith('**') && line.endsWith('**')) {
+      return (
+        <div className="font-semibold text-gray-800">
+          {line.replace(/\*\*/g, '')}
+        </div>
+      );
+    }
+    
+    return <span>{line}</span>;
   };
 
   const renderMessage = (message: ChatMessage) => {

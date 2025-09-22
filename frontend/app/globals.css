@@ -18,7 +18,7 @@
   }
   
   .message-assistant {
-    @apply bg-white text-gray-900 mr-auto max-w-xs md:max-w-sm lg:max-w-md px-4 py-2 rounded-2xl rounded-bl-md shadow-sm border border-gray-200;
+    @apply bg-white text-gray-900 mr-auto max-w-sm md:max-w-lg lg:max-w-2xl px-4 py-3 rounded-2xl rounded-bl-md shadow-sm border border-gray-200;
   }
   
   .message-system {
@@ -43,6 +43,22 @@
   
   .property-card {
     @apply bg-white rounded-lg shadow-sm border border-gray-200 p-4 hover:shadow-md transition-shadow;
+  }
+  
+  .property-listing {
+    @apply bg-gray-50 rounded-lg p-3 mb-3 border-l-4 border-primary-500;
+  }
+  
+  .property-title {
+    @apply font-semibold text-gray-800 mb-2;
+  }
+  
+  .property-price {
+    @apply font-bold text-green-600 text-lg mb-1;
+  }
+  
+  .property-details {
+    @apply text-sm text-gray-600 space-y-1;
   }
   
   .btn-primary {
