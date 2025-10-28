@@ -14,7 +14,7 @@ export function errorHandler(
   next: NextFunction
 ): void {
   // Log the error with request context
-  const requestId = req.id || 'unknown';
+  const requestId = (req as any).id || 'unknown';
   
   logger.error({
     err: error,
@@ -39,7 +39,8 @@ export function errorHandler(
       },
     };
 
-    return res.status(error.statusCode).json(response);
+    res.status(error.statusCode).json(response);
+    return;
   }
 
   // Handle validation errors specifically
@@ -53,7 +54,8 @@ export function errorHandler(
       },
     };
 
-    return res.status(400).json(response);
+    res.status(400).json(response);
+    return;
   }
 
   // Handle database errors
@@ -67,7 +69,8 @@ export function errorHandler(
       },
     };
 
-    return res.status(500).json(response);
+    res.status(500).json(response);
+    return;
   }
 
   // Handle authentication errors
@@ -80,7 +83,8 @@ export function errorHandler(
       },
     };
 
-    return res.status(401).json(response);
+    res.status(401).json(response);
+    return;
   }
 
   // Handle unexpected errors

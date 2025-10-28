@@ -61,8 +61,8 @@ export const httpLogger = (req: Request, res: Response, next: NextFunction) => {
   }, 'Request received');
   
   // Override res.end to log response
-  const originalEnd = res.end;
-  res.end = function(chunk?: any, encoding?: any) {
+  const originalEnd = res.end.bind(res);
+  res.end = function(chunk?: any, encoding?: any, cb?: any) {
     const duration = Date.now() - startTime;
     const logData = {
       requestId,
@@ -81,7 +81,7 @@ export const httpLogger = (req: Request, res: Response, next: NextFunction) => {
       logger.info(logData, 'Request completed successfully');
     }
     
-    originalEnd.call(this, chunk, encoding);
+    return originalEnd(chunk, encoding, cb);
   };
   
   next();

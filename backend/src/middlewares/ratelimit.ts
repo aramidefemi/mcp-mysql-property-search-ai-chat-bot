@@ -14,7 +14,7 @@ export const generalRateLimit = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   // Use IP address for identification
-  keyGenerator: (req) => req.ip,
+  keyGenerator: (req) => req.ip || 'unknown',
   // Skip rate limiting in test environment
   skip: (req) => config.NODE_ENV === 'test',
 });
@@ -31,7 +31,7 @@ export const chatRateLimit = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => req.ip,
+  keyGenerator: (req) => req.ip || 'unknown',
   skip: (req) => config.NODE_ENV === 'test',
 });
 
@@ -47,6 +47,6 @@ export const searchRateLimit = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => req.ip,
+  keyGenerator: (req) => req.ip || 'unknown',
   skip: (req) => config.NODE_ENV === 'test',
 });

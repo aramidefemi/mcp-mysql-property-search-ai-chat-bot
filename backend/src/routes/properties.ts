@@ -31,7 +31,15 @@ router.get(
     }, 'Direct property search request');
 
     try {
-      const results = await searchProperties(searchParams);
+      const params = {
+        place: String(searchParams.place || ''),
+        limit: Number(searchParams.limit) || 20,
+        offset: Number(searchParams.offset) || 0,
+        ...(searchParams.minPrice && { minPrice: Number(searchParams.minPrice) }),
+        ...(searchParams.maxPrice && { maxPrice: Number(searchParams.maxPrice) }),
+        ...(searchParams.bedrooms && { bedrooms: Number(searchParams.bedrooms) }),
+      };
+      const results = await searchProperties(params);
 
       logger.info({
         place: searchParams.place,
@@ -67,7 +75,7 @@ router.get(
     try {
       // Test database connectivity with a simple query
       const testResult = await searchProperties({
-        place: { by: 'city', value: 'test-city-that-does-not-exist' },
+        place: 'test-city-that-does-not-exist',
         limit: 1,
         offset: 0,
       });
@@ -120,7 +128,7 @@ router.get(
       for (const city of sampleCities) {
         try {
           const cityResults = await searchProperties({
-            place: { by: 'city', value: city },
+            place: city,
             limit: 1,
             offset: 0,
           });

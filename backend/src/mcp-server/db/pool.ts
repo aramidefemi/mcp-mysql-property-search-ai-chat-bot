@@ -20,24 +20,12 @@ export function createPool(): mysql.Pool {
       maxIdle: 10,
       idleTimeout: 60000,
       queueLimit: 0,
-      acquireTimeout: 60000,
-      timeout: 60000,
       enableKeepAlive: true,
       keepAliveInitialDelay: 0,
       // Enable multiple statement queries for migrations
       multipleStatements: false,
       // Ensure UTF8 encoding
       charset: 'utf8mb4',
-    });
-
-    // Handle pool errors
-    pool.on('error', (err) => {
-      console.error('MySQL pool error:', err);
-      if (err.code === 'PROTOCOL_CONNECTION_LOST') {
-        console.log('Recreating MySQL pool...');
-        pool = null;
-        createPool();
-      }
     });
   }
 
@@ -66,12 +54,12 @@ export async function getConnection(): Promise<mysql.PoolConnection> {
 export async function executeQuery<T = any>(
   query: string,
   params?: any[]
-): Promise<mysql.RowDataPacket[] | mysql.RowDataPacket[][] | mysql.OkPacket | mysql.OkPacket[] | mysql.ResultSetHeader | mysql.ResultSetHeader[]> {
+): Promise<T> {
   const connection = await getConnection();
   
   try {
     const [rows] = await connection.execute(query, params);
-    return rows as T;
+    return rows as unknown as T;
   } catch (error) {
     throw new DatabaseError(
       `Query execution failed: ${query}`,

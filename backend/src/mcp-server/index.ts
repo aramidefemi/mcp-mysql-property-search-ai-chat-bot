@@ -42,6 +42,7 @@ export async function executeTool(toolName: ToolFunction, args: any): Promise<an
  */
 export async function initializeMcpServer(): Promise<boolean> {
   try {
+    console.log('Initializing MCP server...');
     console.log('Testing database connection...');
     const isConnected = await testConnection();
     

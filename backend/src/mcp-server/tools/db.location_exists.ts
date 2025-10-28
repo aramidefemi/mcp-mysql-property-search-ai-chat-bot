@@ -21,21 +21,52 @@ interface SuggestionRow extends RowDataPacket {
 export async function locationExists(input: LocationExistsInput): Promise<LocationExistsResult> {
   try {
     const { name } = input;
-   
-
     console.log('locationExists called with name:', name);
     
-
-const query = `SELECT id, location
-FROM property
-WHERE LOWER(location) LIKE CONCAT('%', LOWER('${name}'), '%' )  limit 3;`
-
-const simpleResult = await executeQuery(query) as any[];
- 
+    // Check for exact matches in location and city columns
+    const exactQuery = `
+      SELECT DISTINCT location, city, address
+      FROM property
+      WHERE LOWER(location) = LOWER(?) 
+         OR LOWER(city) = LOWER(?)
+      LIMIT 1
+    `;
+    
+    const exactMatches = await executeQuery<LocationRow[]>(exactQuery, [name, name]);
+    
+    if (Array.isArray(exactMatches) && exactMatches.length > 0 && exactMatches[0]) {
+      const match = exactMatches[0];
+      return {
+        exists: true,
+        match: {
+          city: match.city || undefined,
+          location: match.location || undefined,
+        },
+        suggestions: [],
+      };
+    }
+    
+    // Get suggestions for partial matches
+    const suggestionsQuery = `
+      SELECT DISTINCT location, city
+      FROM property
+      WHERE LOWER(location) LIKE CONCAT('%', LOWER(?), '%')
+         OR LOWER(city) LIKE CONCAT('%', LOWER(?), '%')
+         OR LOWER(address) LIKE CONCAT('%', LOWER(?), '%')
+      LIMIT 3
+    `;
+    
+    const suggestions = await executeQuery<LocationRow[]>(suggestionsQuery, [name, name, name]);
+    const suggestionStrings = (Array.isArray(suggestions) ? suggestions : [])
+      .map(row => row.location || row.city || '')
+      .filter(loc => loc !== '');
+    
+    console.log(`Location "${name}" exists: false, suggestions: ${suggestionStrings.length}`);
+    
     return {
       exists: false,
       match: null,
-      suggestions: simpleResult,
+      suggestions: suggestionStrings,
     };
     
   } catch (error) {

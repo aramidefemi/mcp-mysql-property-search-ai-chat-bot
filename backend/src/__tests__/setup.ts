@@ -1,5 +1,14 @@
 import { config } from '../config.js';
 
+// Declare global test utilities type
+declare global {
+  var testUtils: {
+    createMockMessage: (role: 'user' | 'assistant' | 'system', content: string) => any;
+    createMockConversation: (id: string, messages?: any[]) => any;
+    delay: (ms: number) => Promise<void>;
+  };
+}
+
 // Test environment setup
 beforeAll(async () => {
   // Set test environment
@@ -18,7 +27,7 @@ afterAll(async () => {
 });
 
 // Global test utilities
-global.testUtils = {
+(global as any).testUtils = {
   createMockMessage: (role: 'user' | 'assistant' | 'system', content: string) => ({
     role,
     content,

@@ -37,27 +37,112 @@ export async function searchProperties(input: PropertySearchInput): Promise<Prop
       throw new Error(`Invalid place parameter: ${JSON.stringify(input.place)}`);
     }
 
-    const { place, limit = 20 } = input; 
-    console.log('search props called with name:', place);
+    const { place, limit = 20, minPrice, maxPrice, bedrooms, offset = 0 } = input;
+    console.log('search_properties called with:', { place, limit, minPrice, maxPrice, bedrooms, offset });
     
-    const query = `SELECT location, price, property_header 
-    FROM property
-    WHERE LOWER(location) LIKE CONCAT('%', LOWER('${place}'), '%' )  limit 3;`
+    // Build WHERE clause
+    const conditions: string[] = [];
+    const params: any[] = [];
     
-    const simpleResult = await executeQuery(query) as any[];
+    // Location search - check location, city, and address columns
+    conditions.push(`(
+      LOWER(location) LIKE CONCAT('%', LOWER(?), '%') OR
+      LOWER(city) LIKE CONCAT('%', LOWER(?), '%') OR
+      LOWER(address) LIKE CONCAT('%', LOWER(?), '%')
+    )`);
+    params.push(place, place, place);
     
-    console.log('simpleResult:', simpleResult, 'query:', query);
-        
-        return {
-          total: simpleResult.length,
-          items: simpleResult,
-        };
-     
-    } catch (fallbackError) {
-      console.error('Fallback search also failed:', fallbackError);
+    // Price filters
+    if (minPrice !== undefined) {
+      conditions.push('price_num >= ?');
+      params.push(minPrice);
+    }
+    if (maxPrice !== undefined) {
+      conditions.push('price_num <= ?');
+      params.push(maxPrice);
     }
     
- 
+    // Bedroom filter
+    if (bedrooms !== undefined) {
+      conditions.push('bed_rooms_text LIKE ?');
+      params.push(`%${bedrooms}%`);
+    }
+    
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    
+    // Get total count
+    const countQuery = `SELECT COUNT(*) as total FROM property ${whereClause}`;
+    const countResult = await executeQuery<CountRow[]>(countQuery, params);
+    const firstRow = Array.isArray(countResult) && countResult.length > 0 ? countResult[0] : null;
+    const total = firstRow && firstRow.total ? firstRow.total : 0;
+    
+    // Get properties with limit and offset
+    const query = `SELECT 
+      id, property_name, property_title, property_description, 
+      address, city, location, 
+      property_picture1, property_picture2, property_picture3,
+      price_num, bed_rooms_text, contact_number,
+      latitude, longitude, date_created
+    FROM property 
+    ${whereClause}
+    ORDER BY date_created DESC
+    LIMIT ? OFFSET ?`;
+    
+    const searchParams = [...params, limit, offset];
+    const rows = await executeQuery<PropertyRow[]>(query, searchParams);
+    
+    // Transform to PropertyItem format
+    const items: PropertyItem[] = (Array.isArray(rows) ? rows : []).map(property => {
+      // Parse bedrooms from text (e.g., "3 Bedrooms" -> 3)
+      let bedrooms: number | null = null;
+      if (property.bed_rooms_text) {
+        const bedroomMatch = property.bed_rooms_text.match(/(\d+)/);
+        if (bedroomMatch && bedroomMatch[1] !== undefined) {
+          bedrooms = parseInt(bedroomMatch[1], 10);
+        }
+      }
+      
+      // Collect pictures
+      const pictures = [
+        property.property_picture1,
+        property.property_picture2,
+        property.property_picture3
+      ].filter(pic => pic && pic !== '') as string[];
+      
+      return {
+        id: property.id,
+        name: property.property_name,
+        title: property.property_title,
+        description: property.property_description,
+        address: property.address,
+        city: property.city,
+        location: property.location,
+        pictures: pictures,
+        price: property.price_num,
+        bedrooms: bedrooms,
+        contact: property.contact_number,
+        coords: {
+          lat: property.latitude,
+          lng: property.longitude,
+        },
+        createdAt: property.date_created ? new Date(property.date_created).toISOString() : new Date().toISOString(),
+      };
+    });
+    
+    console.log(`Found ${items.length} properties matching "${place}" (total: ${total})`);
+    
+    return {
+      total,
+      items,
+    };
+     
+  } catch (error) {
+    console.error('Property search failed:', error);
+    throw new DatabaseError(
+      `Failed to search properties for: ${input.place}`,
+      error
+    );
+  }
 }
 
 /**
@@ -67,13 +152,13 @@ export const searchPropertiesToolDefinition = {
   type: 'function' as const,
   function: {
     name: 'db_search_properties',
-    description: 'Search for properties with location, price, and bedroom filters. Uses address column for comprehensive location matching (e.g., searches "Lagos" in "Epe Rd, Epe 106103, Lagos, Nigeria"). Always filter by active properties only.',
+    description: 'Search for properties with location, price, and bedroom filters. Uses address column for comprehensive location matching.',
     parameters: {
       type: 'object',
       properties: {
         place: {
           type: 'string',
-          description: 'The location name to search for (e.g., "Lagos", "Epe", "Ibadan", "Victoria Island"). Will match anywhere within property addresses.',
+          description: 'The location name to search for (e.g., "Lagos", "Ibadan", "Abuja"). Will match anywhere within property addresses.',
         },
         minPrice: {
           type: 'number',
