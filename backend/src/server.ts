@@ -91,9 +91,10 @@ async function startServer(): Promise<void> {
     }
 
     // Start HTTP server
-    const server = app.listen(config.BACKEND_PORT, () => {
+    const port = Number(process.env.PORT) || config.BACKEND_PORT;
+    const server = app.listen(port, () => {
       logger.info({
-        port: config.BACKEND_PORT,
+        port,
         environment: config.NODE_ENV,
         database: `${config.MYSQL_HOST}:${config.MYSQL_PORT}/${config.MYSQL_DB}`,
       }, `Server started successfully`);
