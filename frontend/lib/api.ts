@@ -2,7 +2,7 @@
  * API client for communicating with the backend
  */
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://property-search-backend-git-main-aramidefemis-projects.vercel.app/';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://stingray-app-7zm89.ondigitalocean.app/';
 const API_KEY = process.env.NEXT_PUBLIC_API_KEY || 'dev-local-key';
 
 export interface Message {
