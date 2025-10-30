@@ -18,6 +18,8 @@ const configSchema = z.object({
   
   // Environment
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+  // CORS
+  CORS_ORIGINS: z.string().optional().default(''),
   
   // Rate Limiting
   RATE_LIMIT_WINDOW_MS: z.coerce.number().default(15 * 60 * 1000), // 15 minutes
