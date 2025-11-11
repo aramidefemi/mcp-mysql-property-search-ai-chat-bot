@@ -132,8 +132,8 @@ const mapToSummary = (doc: WithId<PropertyListingDocument>): PropertyListingSumm
     assumptions: doc.audit?.assumptions ?? [],
     parserVersion: doc.audit?.parser_version ?? null,
   },
-  createdAt: toNullableIso(doc.created_at) ?? '',
-  updatedAt: toNullableIso(doc.updated_at) ?? '',
+  createdAt: toNullableIso(doc.created_at),
+  updatedAt: toNullableIso(doc.updated_at),
 });
 
 const buildQuery = (filters: MongoPropertySearchInput): Filter<PropertyListingDocument> => {

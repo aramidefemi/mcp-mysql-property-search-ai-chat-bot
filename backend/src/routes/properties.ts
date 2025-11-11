@@ -104,10 +104,13 @@ router.get(
   asyncHandler(async (req: Request, res: Response) => {
     try {
       const cities = ['Lagos', 'Abuja', 'Ibadan', 'Kano'];
-      const sampleSearches: Record<string, { total: number; hasResults: boolean }> = {};
+      const sampleSearches: Record<
+        string,
+        { total: number; hasResults: boolean; error?: string }
+      > = {};
 
-      await Promise.all(
-        cities.map(async (city) => {
+      for (const city of cities) {
+        try {
           const results = await searchPropertyListings({
             city,
             limit: 1,
@@ -117,8 +120,16 @@ router.get(
             total: results.total,
             hasResults: results.items.length > 0,
           };
-        }),
-      );
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Unknown error';
+          logger.warn({ city, error: message }, 'Sample search failed');
+          sampleSearches[city] = {
+            total: 0,
+            hasResults: false,
+            error: message,
+          };
+        }
+      }
 
       const stats = {
         sampleSearches,
