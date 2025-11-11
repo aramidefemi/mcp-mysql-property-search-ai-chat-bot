@@ -1,13 +1,5 @@
 import { z } from 'zod';
-
-// Message types
-export const MessageSchema = z.object({
-  role: z.enum(['user', 'assistant', 'system', 'tool']),
-  content: z.string(),
-  timestamp: z.string().datetime(),
-  tool_calls: z.array(z.any()).optional(),
-  tool_call_id: z.string().optional(),
-});
+import type { MoneyValue } from '../models/property-listing.js';
 
 export type Message = z.infer<typeof MessageSchema>;
 
@@ -24,44 +16,141 @@ export const ChatRequestSchema = z.object({
 export type ChatRequest = z.infer<typeof ChatRequestSchema>;
 
 // Property search types
-export const PropertySearchInputSchema = z.object({
-  place: z.string().min(1),
-  minPrice: z.number().positive().optional(),
-  maxPrice: z.number().positive().optional(),
-  bedrooms: z.number().int().positive().optional(),
-  limit: z.number().int().positive().max(50).default(20),
-  offset: z.number().int().nonnegative().default(0),
+import type { MoneyValue, PropertyUnit } from '../models/property-listing.js';
+
+export const MongoPropertySearchInputSchema = z.object({
+  q: z.string().trim().min(1).optional(),
+  place: z.string().trim().min(1).optional(),
+  city: z.string().trim().min(1).optional(),
+  state: z.string().trim().min(1).optional(),
+  dealCategory: z.string().trim().min(1).optional(),
+  lifecycle: z.string().trim().min(1).optional(),
+  verification: z.string().trim().min(1).optional(),
+  minBedrooms: z.coerce.number().int().min(0).optional(),
+  maxBedrooms: z.coerce.number().int().min(0).optional(),
+  minPrice: z.coerce.number().min(0).optional(),
+  maxPrice: z.coerce.number().min(0).optional(),
+  minConfidence: z.coerce.number().min(0).max(1).optional(),
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+  offset: z.coerce.number().int().min(0).default(0),
 });
 
-export type PropertySearchInput = z.infer<typeof PropertySearchInputSchema>;
+export type MongoPropertySearchInput = z.infer<typeof MongoPropertySearchInputSchema>;
 
-export const PropertyItemSchema = z.object({
-  id: z.number(),
-  name: z.string(),
-  title: z.string().nullable(),
-  description: z.string().nullable(),
-  address: z.string().nullable(),
-  city: z.string().nullable(),
-  location: z.string().nullable(),
-  pictures: z.array(z.string()),
-  price: z.number().nullable(),
-  bedrooms: z.number().int().nullable(),
-  contact: z.string().nullable(),
-  coords: z.object({
-    lat: z.string().nullable(),
-    lng: z.string().nullable(),
-  }),
-  createdAt: z.string(),
-});
+export interface PropertyListingSummary {
+  id: string;
+  ingest: {
+    source: string;
+    rawMessageId: string | null;
+    groupId: string | null;
+    messageId: string | null;
+    firstSeenAt: string | null;
+    lastSeenAt: string | null;
+    dedupeKey: string;
+  };
+  status: {
+    lifecycle: string;
+    verification: string;
+    extractedConfidence: number | null;
+  };
+  deal: {
+    category: string;
+    price: MoneyValue | null;
+    fees: Record<string, MoneyValue | number | string>;
+  };
+  property: {
+    type: string;
+    subtypeNote: string | null;
+    bedrooms: number | null;
+    bathrooms: number | null;
+    toilets: number | null;
+    furnishing: string | null;
+  };
+  address: {
+    display: string | null;
+    street: string | null;
+    landmark: string | null;
+    area: string | null;
+    district: string | null;
+    city: string | null;
+    lga: string | null;
+    state: string | null;
+    country: string | null;
+    geo: {
+      point: { lat: number | null; lng: number | null } | null;
+      precision: string | null;
+      geocoder: string | null;
+      geocodedAt: string | null;
+      confidence: number | null;
+      sources: string[];
+    };
+  };
+  building: {
+    estateName: string | null;
+    security: string[];
+    amenities: string[];
+    notes: string | null;
+  };
+  units: Array<{
+    unitId: string | null;
+    property: {
+      type: string;
+      bedrooms: number | null;
+      bathrooms: number | null;
+      toilets: number | null;
+      subtypeNote: string | null;
+      furnishing: string | null;
+    };
+    deal: {
+      category: string;
+      price: MoneyValue | null;
+      fees: Record<string, MoneyValue | number | string>;
+    };
+    quantity: number | null;
+  }>;
+  tenantRequirements: {
+    profile: string | null;
+    employment: string | null;
+    income: string | null;
+    notes: string | null;
+  };
+  media: {
+    photos: string[];
+    videos: string[];
+  };
+  contact: {
+    agentName: string | null;
+    phones: string[];
+    whatsapp: string | null;
+    agency: string | null;
+    coBrokerAllowed: boolean | null;
+  };
+  text: {
+    title: string | null;
+    description: string | null;
+    keywords: string[];
+  };
+  quality: {
+    confidenceOverall: number | null;
+    unusedDataPct: number | null;
+    fieldConfidence: Record<string, number>;
+  };
+  audit: {
+    sourceSpans: Record<string, string>;
+    assumptions: string[];
+    parserVersion: string | null;
+  };
+  createdAt: string;
+  updatedAt: string;
+}
 
-export type PropertyItem = z.infer<typeof PropertyItemSchema>;
-
-export const PropertySearchResultSchema = z.object({
-  total: z.number(),
-  items: z.array(PropertyItemSchema),
-});
-
-export type PropertySearchResult = z.infer<typeof PropertySearchResultSchema>;
+export interface PropertyListingSearchResult {
+  total: number;
+  offset: number;
+  limit: number;
+  hasMore: boolean;
+  items: PropertyListingSummary[];
+}
 
 // Location existence check types
 export const LocationExistsInputSchema = z.object({

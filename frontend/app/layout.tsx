@@ -2,9 +2,9 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Property Chat - Nigerian Property Search Assistant',
-  description: 'Find your perfect property in Nigeria with our AI-powered chat assistant',
-  keywords: 'Nigeria, property, real estate, chat, AI assistant, Lagos, Abuja, Ibadan',
+  title: 'Agent Buddy - Nigerian Property Search Assistant',
+  description: 'Explore Nigerian properties with Agent Buddy, your AI-powered real estate co-pilot.',
+  keywords: 'Agent Buddy, Nigeria, property, real estate, chat, AI assistant, Lagos, Abuja, Ibadan',
   viewport: 'width=device-width, initial-scale=1',
 }
 

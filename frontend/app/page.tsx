@@ -266,8 +266,8 @@ export default function ChatPage() {
           <div className="flex items-center space-x-3">
             <ChatBubbleLeftRightIcon className="h-8 w-8 text-primary-500" />
             <div>
-              <h1 className="text-xl font-bold text-gray-900">Property Chat</h1>
-              <p className="text-sm text-gray-600">Nigerian Property Search Assistant</p>
+              <h1 className="text-xl font-bold text-gray-900">Agent Buddy</h1>
+              <p className="text-sm text-gray-600">Your Nigerian property co-pilot</p>
             </div>
           </div>
           
@@ -319,7 +319,7 @@ export default function ChatPage() {
             <div className="text-center py-12 animate-fade-in">
               <ChatBubbleLeftRightIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
               <h2 className="text-2xl font-semibold text-gray-900 mb-2">
-                Welcome to Property Chat!
+                Welcome to Agent Buddy!
               </h2>
               <p className="text-gray-600 max-w-md mx-auto mb-6">
                 I'm your Nigerian property search assistant. Ask me to help you find properties 

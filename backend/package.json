@@ -23,7 +23,9 @@
     "cors": "^2.8.5",
     "express-rate-limit": "^7.1.5",
     "uuid": "^9.0.1",
-    "dotenv": "^16.3.1"
+    "dotenv": "^16.3.1",
+    "mongodb": "^6.8.0",
+    "node-fetch": "^3.3.2"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",

@@ -16,6 +16,13 @@ const configSchema = z.object({
   MYSQL_PASSWORD: z.string().min(1, 'MySQL password is required'),
   MYSQL_DB: z.string().default('agentsrequest'),
   
+  // MongoDB
+  MONGODB_URI: z.string().default('mongodb://localhost:27017'),
+  MONGODB_DB: z.string().default('agent_buddy'),
+  MONGODB_APP_NAME: z.string().default('agent-buddy-backend'),
+  WHATSAPP_VERIFY_TOKEN: z.string().min(1, 'WhatsApp verify token is required'),
+  WHATSAPP_APP_SECRET: z.string().min(1, 'WhatsApp app secret is required'),
+  
   // Environment
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   // CORS

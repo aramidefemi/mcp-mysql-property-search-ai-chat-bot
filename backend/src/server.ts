@@ -8,7 +8,11 @@ import { errorHandler, notFoundHandler } from './middlewares/errors.js';
 import { initializeMcpServer, shutdownMcpServer } from './mcp-server/index.js';
 import chatRoutes from './routes/chat.js';
 import propertiesRoutes from './routes/properties.js';
+import webhooksRoutes from './routes/webhooks.js';
+import workerRoutes from './routes/worker.js';
 import { ApiResponse } from './utils/types.js';
+import { initializeMongo, shutdownMongo } from './db/mongo.js';
+import { ensureMongoIndexes } from './models/index.js';
 
 const app = express();
 
@@ -27,9 +31,15 @@ app.use(corsMiddleware);
 // HTTP request logging
 app.use(httpLogger);
 
+const rawBodySaver = (req: express.Request, res: express.Response, buf: Buffer): void => {
+  if (buf?.length) {
+    req.rawBody = buf.toString('utf8');
+  }
+};
+
 // Body parsing middleware
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json({ limit: '10mb', verify: rawBodySaver }));
+app.use(express.urlencoded({ extended: true, limit: '10mb', verify: rawBodySaver }));
 
 // Rate limiting
 app.use(generalRateLimit);
@@ -53,12 +63,14 @@ app.get('/', (req, res) => {
   const response: ApiResponse<any> = {
     success: true,
     data: {
-      message: 'Property Chat API Server',
+      message: 'Agent Buddy API Server',
       version: '1.0.0',
       endpoints: {
         chat: '/api/chat',
         conversations: '/api/chats/:id', 
         properties: '/api/properties/search',
+        whatsappWebhook: '/webhooks/whatsapp',
+        workerProcess: '/internal/worker/process-pending',
         health: '/health',
       },
     },
@@ -70,6 +82,8 @@ app.get('/', (req, res) => {
 app.use('/api/chat', chatRoutes);
 app.use('/api/chats', chatRoutes); // Alias for chat routes
 app.use('/api/properties', propertiesRoutes);
+app.use('/webhooks', webhooksRoutes);
+app.use('/internal/worker', workerRoutes);
 
 // Handle 404 errors
 app.use(notFoundHandler);
@@ -82,6 +96,11 @@ app.use(errorHandler);
  */
 async function startServer(): Promise<void> {
   try {
+    // Initialize MongoDB
+    logger.info('Initializing MongoDB...');
+    await initializeMongo();
+    await ensureMongoIndexes();
+
     // Initialize MCP server and test database connection
     logger.info('Initializing MCP server...');
     const mcpInitialized = await initializeMcpServer();
@@ -97,6 +116,10 @@ async function startServer(): Promise<void> {
         port,
         environment: config.NODE_ENV,
         database: `${config.MYSQL_HOST}:${config.MYSQL_PORT}/${config.MYSQL_DB}`,
+        mongo: {
+          uri: config.MONGODB_URI,
+          db: config.MONGODB_DB,
+        },
       }, `Server started successfully`);
     });
 
@@ -112,6 +135,7 @@ async function startServer(): Promise<void> {
         }
 
         try {
+          await shutdownMongo();
           await shutdownMcpServer();
           logger.info('Graceful shutdown completed');
           process.exit(0);

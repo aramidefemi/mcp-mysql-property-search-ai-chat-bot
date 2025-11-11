@@ -1,11 +1,11 @@
 import { Router, Request, Response } from 'express';
-import { PropertySearchInputSchema, ApiResponse } from '../utils/types.js';
+import { MongoPropertySearchInputSchema, ApiResponse, MongoPropertySearchInput } from '../utils/types.js';
 import { validateQuery } from '../middlewares/validation.js';
 import { authenticateApiKey, optionalAuth } from '../middlewares/auth.js';
 import { searchRateLimit } from '../middlewares/ratelimit.js';
 import { asyncHandler } from '../middlewares/errors.js';
-import { searchProperties } from '../mcp-server/index.js';
 import logger from '../middlewares/logging.js';
+import { searchPropertyListings } from '../services/property-search.js';
 
 const router = Router();
 
@@ -20,9 +20,9 @@ router.use(searchRateLimit);
 router.get(
   '/search',
   optionalAuth, // Optional auth for development flexibility
-  validateQuery(PropertySearchInputSchema),
+  validateQuery(MongoPropertySearchInputSchema),
   asyncHandler(async (req: Request, res: Response) => {
-    const searchParams = req.query;
+    const searchParams = req.query as MongoPropertySearchInput;
 
     logger.info({
       searchParams,
@@ -31,18 +31,10 @@ router.get(
     }, 'Direct property search request');
 
     try {
-      const params = {
-        place: String(searchParams.place || ''),
-        limit: Number(searchParams.limit) || 20,
-        offset: Number(searchParams.offset) || 0,
-        ...(searchParams.minPrice && { minPrice: Number(searchParams.minPrice) }),
-        ...(searchParams.maxPrice && { maxPrice: Number(searchParams.maxPrice) }),
-        ...(searchParams.bedrooms && { bedrooms: Number(searchParams.bedrooms) }),
-      };
-      const results = await searchProperties(params);
+      const results = await searchPropertyListings(searchParams);
 
       logger.info({
-        place: searchParams.place,
+        filters: searchParams,
         resultCount: results.items.length,
         totalFound: results.total,
       }, 'Property search completed');
@@ -73,13 +65,7 @@ router.get(
   '/health',
   asyncHandler(async (req: Request, res: Response) => {
     try {
-      // Test database connectivity with a simple query
-      const testResult = await searchProperties({
-        place: 'test-city-that-does-not-exist',
-        limit: 1,
-        offset: 0,
-      });
-
+      await searchPropertyListings({ limit: 1, offset: 0 });
       const response: ApiResponse<any> = {
         success: true,
         data: {
@@ -117,33 +103,27 @@ router.get(
   authenticateApiKey, // Require auth for stats
   asyncHandler(async (req: Request, res: Response) => {
     try {
-      // Get sample data from different cities to show stats
-      const sampleCities = ['Lagos', 'Abuja', 'Ibadan', 'Kano'];
-      const stats: any = {
-        sampleSearches: {},
-        timestamp: new Date().toISOString(),
-      };
+      const cities = ['Lagos', 'Abuja', 'Ibadan', 'Kano'];
+      const sampleSearches: Record<string, { total: number; hasResults: boolean }> = {};
 
-      // Run quick searches to get stats
-      for (const city of sampleCities) {
-        try {
-          const cityResults = await searchProperties({
-            place: city,
+      await Promise.all(
+        cities.map(async (city) => {
+          const results = await searchPropertyListings({
+            city,
             limit: 1,
             offset: 0,
           });
-          stats.sampleSearches[city] = {
-            total: cityResults.total,
-            hasResults: cityResults.items.length > 0,
+          sampleSearches[city] = {
+            total: results.total,
+            hasResults: results.items.length > 0,
           };
-        } catch (error) {
-          stats.sampleSearches[city] = {
-            total: 0,
-            hasResults: false,
-            error: 'Search failed',
-          };
-        }
-      }
+        }),
+      );
+
+      const stats = {
+        sampleSearches,
+        timestamp: new Date().toISOString(),
+      };
 
       const response: ApiResponse<typeof stats> = {
         success: true,
