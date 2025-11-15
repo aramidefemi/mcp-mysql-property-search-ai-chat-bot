@@ -16,10 +16,7 @@ const router = Router();
 router.use(chatRateLimit);
 router.use(authenticateApiKey);
 
-/**
- * POST /api/chat
- * Create or continue a chat conversation with OpenAI
- */
+
 router.post(
   '/',
   validateBody(ChatRequestSchema),
