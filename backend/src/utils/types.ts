@@ -1,5 +1,14 @@
 import { z } from 'zod';
-import type { MoneyValue } from '../models/property-listing.js';
+import type { MoneyValue, PropertyUnit } from '../models/property-listing.js';
+
+// Message types
+export const MessageSchema = z.object({
+  role: z.enum(['user', 'assistant', 'system', 'tool']),
+  content: z.string(),
+  timestamp: z.string().datetime(),
+  tool_calls: z.array(z.any()).optional(),
+  tool_call_id: z.string().optional(),
+});
 
 export type Message = z.infer<typeof MessageSchema>;
 
@@ -14,9 +23,6 @@ export const ChatRequestSchema = z.object({
 });
 
 export type ChatRequest = z.infer<typeof ChatRequestSchema>;
-
-// Property search types
-import type { MoneyValue, PropertyUnit } from '../models/property-listing.js';
 
 export const MongoPropertySearchInputSchema = z.object({
   q: z.string().trim().min(1).optional(),
@@ -140,8 +146,8 @@ export interface PropertyListingSummary {
     assumptions: string[];
     parserVersion: string | null;
   };
-  createdAt: string;
-  updatedAt: string;
+  createdAt: string | null;
+  updatedAt: string | null;
 }
 
 export interface PropertyListingSearchResult {

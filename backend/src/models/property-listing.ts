@@ -59,7 +59,7 @@ export interface PropertyListingDocument {
     furnishing?: string | null;
   };
   address: {
-    display: string;
+    display: string | null;
     street?: string | null;
     landmark?: string | null;
     area?: string | null;
@@ -69,7 +69,7 @@ export interface PropertyListingDocument {
     state?: string | null;
     country?: string | null;
     geo?: {
-      point?: { lat: number; lng: number } | null;
+      point?: { lat: number | null; lng: number | null } | null;
       precision?: 'exact' | 'street' | 'area' | 'city' | 'state' | string;
       geocoder?: string | null;
       geocoded_at?: Date | null;
@@ -102,8 +102,8 @@ export interface PropertyListingDocument {
     co_broker_allowed?: boolean | null;
   };
   text: {
-    title: string;
-    description: string;
+    title: string | null;
+    description: string | null;
     keywords: string[];
   };
   quality?: {

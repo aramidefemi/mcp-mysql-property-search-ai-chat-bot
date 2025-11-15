@@ -1,4 +1,4 @@
-import { ObjectId } from 'mongodb';
+import { ObjectId, type WithId } from 'mongodb';
 import { getIncomingMessagesCollection, IncomingMessageDocument } from '../models/incoming-message.js';
 import { getPropertiesCollection, PropertyListingDocument } from '../models/property-listing.js';
 import { extractListingsFromMessage } from './whatsapp-parser.js';
@@ -35,7 +35,7 @@ interface ListingSummary {
 }
 
 const buildClaimFilter = (now: Date, maxAttempts: number, timeoutMs: number) => ({
-  source: 'whatsapp',
+  source: 'whatsapp' as const,
   'processing.attempts': { $lt: maxAttempts },
   $or: [
     { 'processing.status': 'pending' },
@@ -55,7 +55,7 @@ const claimPendingMessages = async (
   const now = new Date();
 
   while (claimed.length < batchSize) {
-    const result = await collection.findOneAndUpdate(
+    const result: WithId<IncomingMessageDocument> | null = await collection.findOneAndUpdate(
       buildClaimFilter(now, maxAttempts, claimTimeoutMs),
       {
         $set: {
@@ -78,11 +78,11 @@ const claimPendingMessages = async (
       },
     );
 
-    if (!result.value) {
+    if (!result) {
       break;
     }
 
-    claimed.push(result.value);
+    claimed.push(result as IncomingMessageDocument);
   }
 
   return claimed;
@@ -281,6 +281,9 @@ const upsertListings = async (
 
   for (let index = 0; index < listings.length; index += 1) {
     const draft = listings[index];
+    if (!draft) {
+      continue;
+    }
     const doc = normalizeListingDocument(message, index, draft);
     const update = await collection.updateOne(
       { _id: doc._id },

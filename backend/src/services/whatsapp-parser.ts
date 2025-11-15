@@ -365,7 +365,12 @@ const coerceMoney = (value: unknown): MoneyValue | null => {
   const maybe = value as Partial<MoneyValue>;
   const amount = coerceNumber(maybe.amount);
   const currency = coerceString(maybe.currency) ?? 'NGN';
-  const period = coerceString(maybe.period);
+  const periodRaw = coerceString(maybe.period);
+  const period: 'per_year' | 'per_month' | 'per_week' | 'per_day' | 'sale' | undefined =
+    periodRaw === 'per_year' || periodRaw === 'per_month' || periodRaw === 'per_week' ||
+    periodRaw === 'per_day' || periodRaw === 'sale'
+      ? periodRaw
+      : undefined;
   const negotiable = coerceBoolean((maybe as any).negotiable);
 
   if (amount === null && !period && !negotiable && !currency) {
@@ -389,10 +394,10 @@ const coerceUnit = (value: unknown): PropertyUnit | null => {
   const property = source.property ?? {};
   const deal = source.deal ?? {};
 
-  const unitId = coerceString(source.unit_id) ?? undefined;
+  const unitId = coerceString(source.unit_id);
 
   return {
-    unit_id: unitId ?? undefined,
+    unit_id: unitId ?? 'U1',
     property: {
       type: coerceString((property as any).type) ?? 'apartment',
       bedrooms: coerceNumber((property as any).bedrooms),
@@ -414,12 +419,12 @@ const normalizeListing = (listing: ParserListing): ParserListing => {
   const normalized: ParserListing = {
     listing_id: coerceString((listing as any).listing_id),
     ingest: {
-      dedupe_key: coerceString(listing?.ingest?.dedupe_key),
-      raw_message_id: coerceString(listing?.ingest?.raw_message_id),
-      group_id: coerceString(listing?.ingest?.group_id),
-      first_seen_at: coerceString(listing?.ingest?.first_seen_at),
-      last_seen_at: coerceString(listing?.ingest?.last_seen_at),
-    },
+      dedupe_key: coerceString(listing?.ingest?.dedupe_key) ?? undefined,
+      raw_message_id: coerceString(listing?.ingest?.raw_message_id) ?? undefined,
+      group_id: coerceString(listing?.ingest?.group_id) ?? undefined,
+      first_seen_at: coerceString(listing?.ingest?.first_seen_at) ?? undefined,
+      last_seen_at: coerceString(listing?.ingest?.last_seen_at) ?? undefined,
+    } as any,
     status: {
       lifecycle: coerceString(listing?.status?.lifecycle) ?? 'active',
       verification: coerceString(listing?.status?.verification) ?? 'unverified',
@@ -442,7 +447,7 @@ const normalizeListing = (listing: ParserListing): ParserListing => {
       furnishing: coerceString(listing?.property?.furnishing),
     },
     address: {
-      display: coerceString(listing?.address?.display),
+      display: coerceString(listing?.address?.display) ?? null,
       street: coerceString(listing?.address?.street),
       landmark: coerceString(listing?.address?.landmark),
       area: coerceString(listing?.address?.area),
@@ -455,13 +460,13 @@ const normalizeListing = (listing: ParserListing): ParserListing => {
         point:
           listing?.address?.geo?.point && typeof listing.address.geo.point === 'object'
             ? {
-                lat: coerceNumber((listing.address.geo.point as any).lat),
-                lng: coerceNumber((listing.address.geo.point as any).lng),
+                lat: coerceNumber((listing.address.geo.point as any).lat) ?? null,
+                lng: coerceNumber((listing.address.geo.point as any).lng) ?? null,
               }
             : null,
         precision: coerceString(listing?.address?.geo?.precision) ?? 'area',
         geocoder: coerceString(listing?.address?.geo?.geocoder),
-        geocoded_at: coerceString(listing?.address?.geo?.geocoded_at),
+        geocoded_at: coerceString(listing?.address?.geo?.geocoded_at) ? new Date(coerceString(listing?.address?.geo?.geocoded_at)!) : null,
         confidence: coerceNumber(listing?.address?.geo?.confidence),
         sources: coerceStringArray(listing?.address?.geo?.sources),
       },
@@ -493,8 +498,8 @@ const normalizeListing = (listing: ParserListing): ParserListing => {
       co_broker_allowed: coerceBoolean(listing?.contact?.co_broker_allowed),
     },
     text: {
-      title: coerceString(listing?.text?.title),
-      description: coerceString(listing?.text?.description),
+      title: coerceString(listing?.text?.title) ?? null,
+      description: coerceString(listing?.text?.description) ?? null,
       keywords: coerceStringArray(listing?.text?.keywords),
     },
     quality: {

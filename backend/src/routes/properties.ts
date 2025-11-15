@@ -22,7 +22,7 @@ router.get(
   optionalAuth, // Optional auth for development flexibility
   validateQuery(MongoPropertySearchInputSchema),
   asyncHandler(async (req: Request, res: Response) => {
-    const searchParams = req.query as MongoPropertySearchInput;
+    const searchParams = req.query as unknown as MongoPropertySearchInput;
 
     logger.info({
       searchParams,
